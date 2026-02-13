@@ -1,0 +1,5 @@
+package me.gb2022.gluon;
+
+public enum FunctionalComponentStatus {
+    UNKNOWN, REGISTER, REGISTER_FAILED, CONSTRUCT, CONSTRUCT_FAILED, ENABLED, ENABLE_FAILED, DISABLED
+}

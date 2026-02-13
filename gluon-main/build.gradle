@@ -1,0 +1,29 @@
+plugins {
+    id 'java'
+}
+
+group = 'me.gb2022'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+apply from: '../gbuild.gradle'
+
+publish_gbuild()
+
+setJavaCompatibility(17)
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly "org.apache.logging.log4j:log4j-core:2.8.1"
+
+    compileOnly gbuildLib('me.gb2022.commons:commons-math')
+    compileOnly gbuildLib('me.gb2022.commons:commons-container')
+    compileOnly gbuildLib('me.gb2022.commons:commons-general')
+    compileOnly gbuildLib('me.gb2022.commons:commons-compatibility')
+}
