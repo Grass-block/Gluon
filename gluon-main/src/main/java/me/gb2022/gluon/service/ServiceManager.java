@@ -1,6 +1,6 @@
 package me.gb2022.gluon.service;
 
-import me.gb2022.gluon.APIIncompatibleException;
+import me.gb2022.commons.compatibility.APIIncompatibleException;
 import me.gb2022.gluon.Debug;
 import me.gb2022.gluon.ModularApplicationContext;
 import org.apache.logging.log4j.LogManager;

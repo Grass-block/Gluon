@@ -1,6 +1,6 @@
 package me.gb2022.gluon.module;
 
-import me.gb2022.gluon.APIIncompatibleException;
+import me.gb2022.commons.compatibility.APIIncompatibleException;
 import me.gb2022.gluon.FunctionalComponentStatus;
 import me.gb2022.gluon.ModularApplicationContext;
 import me.gb2022.gluon.attachment.SimpleAttachmentContainer;

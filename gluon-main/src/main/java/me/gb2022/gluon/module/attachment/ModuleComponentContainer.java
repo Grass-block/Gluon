@@ -1,6 +1,6 @@
 package me.gb2022.gluon.module.attachment;
 
-import me.gb2022.gluon.APIIncompatibleException;
+import me.gb2022.commons.compatibility.APIIncompatibleException;
 import me.gb2022.gluon.module.component.SubComponent;
 import me.gb2022.gluon.module.component.SubComponentHolder;
 
