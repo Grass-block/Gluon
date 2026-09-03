@@ -12,13 +12,17 @@ import java.util.Set;
 import java.util.function.Function;
 
 public final class ModularApplicationContext {
+    private final String applicationName;
     private final Object holder;
+    private final LogProvider logProvider;
     private final PackageManager packageManager;
     private final ServiceManager serviceManager;
     private final ModuleManager moduleManager;
 
     private ModularApplicationContext(Object holder, Builder builder) {
         this.holder = holder;
+        this.applicationName = builder.applicationName;
+        this.logProvider = builder.logProviderFunction.apply(this);
         this.packageManager = builder.packageManagerProvider.apply(this);
         this.serviceManager = builder.serviceManagerProvider.apply(this);
         this.moduleManager = builder.moduleManagerProvider.apply(this);
@@ -79,6 +83,10 @@ public final class ModularApplicationContext {
         return moduleManager;
     }
 
+    public LogProvider getLogProvider() {
+        return logProvider;
+    }
+
     public <H> H holder(Class<H> type) {
         return type.cast(holder);
     }
@@ -86,6 +94,8 @@ public final class ModularApplicationContext {
     public static final class Builder {
         private final Object holder;
 
+        private String applicationName = "Gluon";
+        private Function<ModularApplicationContext, LogProvider> logProviderFunction = (s) -> new LogProvider.DefaultLogProvider(s.applicationName);
         private Function<ModularApplicationContext, ServiceManager> serviceManagerProvider = ServiceManager::new;
         private Function<ModularApplicationContext, PackageManager> packageManagerProvider = PackageManager::new;
         private Function<ModularApplicationContext, ModuleManager> moduleManagerProvider = ModuleManager::new;
@@ -104,13 +114,23 @@ public final class ModularApplicationContext {
             return this;
         }
 
-        public ModularApplicationContext build() {
-            return new ModularApplicationContext(this.holder, this);
+        public Builder applicationName(String applicationName) {
+            this.applicationName = applicationName;
+            return this;
+        }
+
+        public Builder logProvider(Function<ModularApplicationContext, LogProvider> provider) {
+            this.logProviderFunction = provider;
+            return this;
         }
 
         public Builder moduleManager(Function<ModularApplicationContext, ModuleManager> provider) {
             this.moduleManagerProvider = provider;
             return this;
+        }
+
+        public ModularApplicationContext build() {
+            return new ModularApplicationContext(this.holder, this);
         }
     }
 }

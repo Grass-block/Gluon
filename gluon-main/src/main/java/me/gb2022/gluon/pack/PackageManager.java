@@ -4,7 +4,6 @@ import me.gb2022.commons.TriState;
 import me.gb2022.gluon.ModularApplicationContext;
 import me.gb2022.gluon.ObjectOperationResult;
 import me.gb2022.gluon.service.Service;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Method;
@@ -13,11 +12,12 @@ import java.util.*;
 public class PackageManager implements Service {
     protected final Properties statusMap = new Properties();
     private final Map<String, ApplicationPackage> packages = new HashMap<>();
-    private final Logger logger = getLogger();
+    private final Logger logger;
     private final ModularApplicationContext context;
 
     public PackageManager(ModularApplicationContext context) {
         this.context = context;
+        this.logger = getLogger();
     }
 
     public void disable() throws Exception {
@@ -35,7 +35,7 @@ public class PackageManager implements Service {
     }
 
     public Logger getLogger() {
-        return LogManager.getLogger("PackageManager");
+        return this.context.getLogProvider().createLogger("ModuleManager");
     }
 
     public void saveStatus(Properties meta) {
@@ -45,6 +45,10 @@ public class PackageManager implements Service {
     public void handleException(Throwable e) {
         this.logger.error("Caught exception: {}", e.getMessage());
         this.logger.catching(e);
+    }
+
+    public boolean isRejectedPackage(ApplicationPackage pack) {
+        return false;
     }
 
     public boolean isReservedPackage(ApplicationPackage pack) {
@@ -85,6 +89,9 @@ public class PackageManager implements Service {
     }
 
     public final ObjectOperationResult enable(String id) {
+        if (isRejectedPackage(get(id))) {
+            return ObjectOperationResult.BLOCKED_INTERNAL;
+        }
         if (isReservedPackage(get(id))) {
             return ObjectOperationResult.BLOCKED_INTERNAL;
         }
@@ -116,6 +123,10 @@ public class PackageManager implements Service {
     }
 
     public final void addPackage(ApplicationPackage pkg) {
+        if (isRejectedPackage(pkg)) {
+            return;
+        }
+
         var id = pkg.meta().id();
 
         try {

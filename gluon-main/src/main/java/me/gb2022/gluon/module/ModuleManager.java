@@ -6,23 +6,23 @@ import me.gb2022.gluon.ModularApplicationContext;
 import me.gb2022.gluon.ObjectOperationResult;
 import me.gb2022.gluon.module.component.SubComponent;
 import me.gb2022.gluon.module.component.SubComponentHolder;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 
 public class ModuleManager {
-    protected final Logger logger = createLogger();
+    protected final Logger logger;
     protected final Map<String, ModuleContainer> modules = new HashMap<>();
     protected final Properties statusMap = new Properties();
     private final ModularApplicationContext context;
 
     public ModuleManager(ModularApplicationContext context) {
         this.context = context;
+        this.logger = createLogger();
     }
 
     public Logger createLogger() {
-        return LogManager.getLogger("ModuleManager");
+        return this.context.getLogProvider().createLogger("ModuleManager");
     }
 
     public void enable() {
@@ -37,10 +37,6 @@ public class ModuleManager {
 
     public ModularApplicationContext getContext() {
         return context;
-    }
-
-    public Logger getLogger() {
-        return LogManager.getLogger("PackageManager");
     }
 
     public void register(ModuleContainer handle) {
@@ -78,6 +74,12 @@ public class ModuleManager {
         if (getStatus(id) == TriState.TRUE && !meta.beta()) {
             this.handlePreEnable(handle);
             handle.init(this);
+
+            if (handle.getStatus() == FunctionalComponentStatus.ENABLE_FAILED) {
+                this.logger.error("Module {} reported exception. Continued registration with error.", handle.getMetadata().key());
+                return;
+            }
+
             this.handlePostEnable(handle, ObjectOperationResult.SUCCESS);
         }
     }
@@ -91,18 +93,21 @@ public class ModuleManager {
         }
 
         if (this.getStatus(id) == TriState.TRUE) {
-            var m = this.get(id).orElseThrow();
+            var meta = this.get(id).orElseThrow();
+            var result = ObjectOperationResult.INTERNAL_ERROR;
 
-            if (m.getStatus() != FunctionalComponentStatus.ENABLED && m.getStatus() != FunctionalComponentStatus.DISABLED) {
-                this.modules.remove(id);
-                return;
-            }
+            this.handlePreDisable(meta);
 
             try {
-                m.disable();
+                meta.disable();
+                result = ObjectOperationResult.SUCCESS;
+            } catch (NoClassDefFoundError e) {
+                this.logger.error("Module {} reported exception. Continued unload with error.", meta.getMetadata().key());
             } catch (Throwable ex) {
                 this.handleException(ex);
             }
+
+            this.handlePostDisable(meta, result);
         }
 
         this.modules.remove(id);
@@ -138,7 +143,7 @@ public class ModuleManager {
         return result;
     }
 
-    public final ObjectOperationResult enable(String id) {
+    public ObjectOperationResult enable(String id) {
         if (get(id).orElseThrow().getMetadata().internal()) {
             return ObjectOperationResult.BLOCKED_INTERNAL;
         }
@@ -153,7 +158,7 @@ public class ModuleManager {
         return result;
     }
 
-    public final ObjectOperationResult disable(String id) {
+    public ObjectOperationResult disable(String id) {
         if (get(id).orElseThrow().getMetadata().internal()) {
             return ObjectOperationResult.BLOCKED_INTERNAL;
         }

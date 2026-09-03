@@ -3,7 +3,6 @@ package me.gb2022.gluon.service;
 import me.gb2022.commons.compatibility.APIIncompatibleException;
 import me.gb2022.gluon.Debug;
 import me.gb2022.gluon.ModularApplicationContext;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.InvocationTargetException;
@@ -14,10 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ServiceManager {
     private final ModularApplicationContext context;
     private final Map<String, ServiceContainer> services = new ConcurrentHashMap<>(24);
-    Logger LOGGER = LogManager.getLogger("ServiceManager");
+    private final Logger LOGGER;
 
     public ServiceManager(ModularApplicationContext context) {
         this.context = context;
+        this.LOGGER = context.getLogProvider().createLogger("ServiceManager");
     }
 
     public final Optional<ServiceContainer> getService(String fullId) {
@@ -30,11 +30,22 @@ public class ServiceManager {
         try {
             container.checkCompatibility();
         } catch (APIIncompatibleException e) {
-            throw new RuntimeException(e);
+            LOGGER.error("Compatibility check failed for {}", container.meta().id());
+            LOGGER.error(e.getMessage());
+            return;
         }
 
         try {
             container.initialize();
+
+            try {
+                container.checkCompatibility();
+            } catch (APIIncompatibleException e) {
+                LOGGER.error("Compatibility check-2 failed for {}", container.meta().id());
+                LOGGER.error(e.getMessage());
+                return;
+            }
+
             container.enable();
         } catch (Exception e) {
             throw new RuntimeException(e);

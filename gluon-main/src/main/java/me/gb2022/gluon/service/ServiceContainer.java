@@ -1,11 +1,13 @@
 package me.gb2022.gluon.service;
 
 import me.gb2022.commons.compatibility.APIIncompatibleException;
+import me.gb2022.gluon.Context;
 import me.gb2022.gluon.Debug;
 import me.gb2022.gluon.FunctionalComponent;
 import me.gb2022.gluon.ModularApplicationContext;
-import me.gb2022.gluon.Context;
 import me.gb2022.gluon.pack.ApplicationPackage;
+
+import java.lang.reflect.InvocationTargetException;
 
 public final class ServiceContainer implements Context, FunctionalComponent {
     private final ApplicationPackage owner;
@@ -26,6 +28,10 @@ public final class ServiceContainer implements Context, FunctionalComponent {
 
     public void initContext(ModularApplicationContext context) {
         this.context = context;
+    }
+
+    @Override
+    public void initialize() {
         this.defaultInstance = context.getServiceManager().createImplementation(this, this.handle);
         Debug.log().info("Created instance for service{}: {}", this.handle, this.defaultInstance);
     }
@@ -70,6 +76,21 @@ public final class ServiceContainer implements Context, FunctionalComponent {
     public void checkCompatibility() throws APIIncompatibleException {
         if (this.defaultInstance != null) {
             this.defaultInstance.checkCompatibility();
+        }
+
+        try {
+            var sm = this.handle.getMethod("checkServiceCompatibility");
+
+            if (sm.isAnnotationPresent(ServiceInject.class)) {
+                return;
+            }
+
+            sm.invoke(null);
+        } catch (NoSuchMethodException ignored) {
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (NoClassDefFoundError e){
+            throw new APIIncompatibleException(e.getMessage());
         }
 
         Debug.log().info("Service {} passed compat check.", this.meta().id());

@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 public interface SubComponentHolder {
-    Logger LOGGER = LogManager.getLogger("ComponentHolder");
+    Logger LOGGER = LogManager.getLogger("GluonComponentHolder");
 
     static <E> Set<SubComponent<E>> createComponents(E holder) {
         var components = new HashSet<SubComponent<E>>();

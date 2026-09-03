@@ -7,17 +7,16 @@ import me.gb2022.gluon.attachment.SimpleAttachmentContainer;
 import me.gb2022.gluon.module.attachment.ModuleAttachment;
 import me.gb2022.gluon.module.attachment.ModuleComponentContainer;
 import me.gb2022.gluon.pack.ApplicationPackage;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.InvocationTargetException;
 
 public final class ModuleContainer extends SimpleAttachmentContainer<ModuleAttachment> {
     private final ModuleComponentContainer components = new ModuleComponentContainer();
-    private final Logger logger;
     private final ApplicationPackage owner;
     private final Class<? extends AppModule> reference;
     private final ModuleMetadata metadata;
+    private Logger logger;
     private FunctionalComponentStatus status = FunctionalComponentStatus.UNKNOWN;
     private AppModule handle;
 
@@ -25,7 +24,6 @@ public final class ModuleContainer extends SimpleAttachmentContainer<ModuleAttac
         this.owner = owner;
         this.reference = reference;
         this.metadata = ModuleMetadata.parse(owner.meta().id(), reference);
-        this.logger = LogManager.getLogger(this.reference.getSimpleName());
         this.addAttachment(this.components);
     }
 
@@ -59,6 +57,8 @@ public final class ModuleContainer extends SimpleAttachmentContainer<ModuleAttac
     }
 
     public void initContext(ModularApplicationContext context) {
+        this.logger = context.getLogProvider().createLogger(this);
+
         for (var h : this.getAttachments().values()) {
             h.initContext(context, this);
         }
@@ -86,6 +86,9 @@ public final class ModuleContainer extends SimpleAttachmentContainer<ModuleAttac
                 this.status = FunctionalComponentStatus.CONSTRUCT_FAILED;
                 e.printStackTrace();
             }
+        } catch (NoClassDefFoundError e) {
+            this.status = FunctionalComponentStatus.CONSTRUCT_FAILED;
+            this.logger.warn("Unable to construct module by missing classes: {}", e.getMessage());
         } catch (Throwable e) {
             this.status = FunctionalComponentStatus.CONSTRUCT_FAILED;
             e.printStackTrace();
@@ -108,6 +111,8 @@ public final class ModuleContainer extends SimpleAttachmentContainer<ModuleAttac
     public void init(ModuleManager owner) {
         try {
             this.enable();
+        } catch (NoClassDefFoundError ignored) {
+            this.status = FunctionalComponentStatus.ENABLE_FAILED;
         } catch (Throwable e) {
             this.status = FunctionalComponentStatus.ENABLE_FAILED;
             owner.handleException(e);
