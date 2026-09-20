@@ -31,7 +31,7 @@ public class PackageManager implements Service {
     }
 
     public final boolean isEnabled(String id) {
-        return getStatus(id) == TriState.FALSE;
+        return getStatus(id) == TriState.TRUE;
     }
 
     public Logger getLogger() {
