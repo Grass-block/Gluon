@@ -5,5 +5,6 @@ public enum ObjectOperationResult {
     NOT_FOUND,
     ALREADY_OPERATED,
     BLOCKED_INTERNAL,
-    INTERNAL_ERROR
+    INTERNAL_ERROR,
+    INCOMPATIBLE
 }

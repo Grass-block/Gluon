@@ -1,6 +1,7 @@
 package me.gb2022.gluon.pack;
 
 import me.gb2022.commons.compatibility.APIIncompatibleException;
+import me.gb2022.gluon.CompatibilityProvider;
 import me.gb2022.gluon.FunctionalComponent;
 import me.gb2022.gluon.ModularApplicationContext;
 import me.gb2022.gluon.attachment.SimpleAttachmentContainer;
@@ -14,6 +15,7 @@ import java.util.Set;
 public final class ApplicationPackage extends SimpleAttachmentContainer<PackageAttachment> implements FunctionalComponent {
     private final Set<ServiceContainer> services = new HashSet<>();
     private final Set<ModuleContainer> modules = new HashSet<>();
+    private final Set<CompatibilityProvider> compatibilityProviders = new HashSet<>();
     private final PackageMetadata meta;
     private final Object holder;
     private ModularApplicationContext context;
@@ -37,6 +39,9 @@ public final class ApplicationPackage extends SimpleAttachmentContainer<PackageA
         }
         for (var services : builder.getModules()) {
             this.modules.add(new ModuleContainer(this, services));
+        }
+        for (var provider : builder.getCompatibilityProviders()) {
+            this.compatibilityProviders.add(provider);
         }
     }
 
@@ -89,6 +94,10 @@ public final class ApplicationPackage extends SimpleAttachmentContainer<PackageA
 
     @Override
     public void checkCompatibility() throws APIIncompatibleException {
+        for (var p:this.compatibilityProviders) {
+            p.checkCompatibility();
+        }
+
         for (var a : this.getAttachments().values()) {
             a.checkCompatibility();
         }

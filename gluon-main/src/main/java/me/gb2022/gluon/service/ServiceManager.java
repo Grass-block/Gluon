@@ -1,6 +1,7 @@
 package me.gb2022.gluon.service;
 
 import me.gb2022.commons.compatibility.APIIncompatibleException;
+import me.gb2022.gluon.ComponentHookHolder;
 import me.gb2022.gluon.Debug;
 import me.gb2022.gluon.ModularApplicationContext;
 import org.apache.logging.log4j.Logger;
@@ -10,9 +11,10 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ServiceManager {
+public class ServiceManager extends ComponentHookHolder<Service> {
     private final ModularApplicationContext context;
     private final Map<String, ServiceContainer> services = new ConcurrentHashMap<>(24);
+    private final Map<Class<? extends Service>, ServiceContainer> classMap = new ConcurrentHashMap<>(24);
     private final Logger LOGGER;
 
     public ServiceManager(ModularApplicationContext context) {
@@ -22,6 +24,15 @@ public class ServiceManager {
 
     public final Optional<ServiceContainer> getService(String fullId) {
         return Optional.ofNullable(this.services.get(fullId));
+    }
+
+    @Override
+    public final <I extends Service> Optional<I> find(Class<I> type) {
+        return getService(type).map((c) -> c.getDefaultInstance(type));
+    }
+
+    public final Optional<ServiceContainer> getService(Class<? extends Service> type) {
+        return Optional.ofNullable(this.classMap.get(type));
     }
 
     public final void addService(ServiceContainer container) {
@@ -52,6 +63,7 @@ public class ServiceManager {
         }
 
         this.services.put(container.meta().fullId(), container);
+        this.classMap.put(container.getHandle(), container);
     }
 
     public final void removeService(ServiceContainer container) {
@@ -74,6 +86,7 @@ public class ServiceManager {
             LOGGER.catching(e);
         } finally {
             this.services.remove(container.meta().fullId());
+            this.classMap.remove(container.getHandle());
         }
     }
 
@@ -137,7 +150,8 @@ public class ServiceManager {
             try {
                 Debug.log().info("Using empty constructor {}: {}", Arrays.toString(args), clazz.getName());
                 return implClass.getDeclaredConstructor().newInstance();
-            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException ex) {
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
+                     NoSuchMethodException ex) {
                 if (e.getCause() instanceof APIIncompatibleException) {
                     return null;
                 }

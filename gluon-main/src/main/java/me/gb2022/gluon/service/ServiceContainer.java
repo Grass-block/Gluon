@@ -96,6 +96,10 @@ public final class ServiceContainer implements Context, FunctionalComponent {
         Debug.log().info("Service {} passed compat check.", this.meta().id());
     }
 
+    public <I extends Service> I getDefaultInstance(Class<I> type) {
+        return type.cast(this.defaultInstance);
+    }
+
     public ServiceMetadata meta() {
         return this.metadata;
     }

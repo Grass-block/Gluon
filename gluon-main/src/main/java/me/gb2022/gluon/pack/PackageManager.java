@@ -1,6 +1,7 @@
 package me.gb2022.gluon.pack;
 
 import me.gb2022.commons.TriState;
+import me.gb2022.commons.compatibility.APIIncompatibleException;
 import me.gb2022.gluon.ModularApplicationContext;
 import me.gb2022.gluon.ObjectOperationResult;
 import me.gb2022.gluon.service.Service;
@@ -12,6 +13,7 @@ import java.util.*;
 public class PackageManager implements Service {
     protected final Properties statusMap = new Properties();
     private final Map<String, ApplicationPackage> packages = new HashMap<>();
+    private final Set<String> incompatiblePackages = new HashSet<>();
     private final Logger logger;
     private final ModularApplicationContext context;
 
@@ -95,9 +97,10 @@ public class PackageManager implements Service {
         if (isReservedPackage(get(id))) {
             return ObjectOperationResult.BLOCKED_INTERNAL;
         }
+
         ObjectOperationResult result = enable0(id);
         if (result == ObjectOperationResult.SUCCESS) {
-            this.logger.info("enabled module %s.".formatted(id));
+            this.logger.info("enabled package {}.", id);
         }
         this.saveStatus();
         return result;
@@ -109,7 +112,7 @@ public class PackageManager implements Service {
         }
         ObjectOperationResult result = disable0(id);
         if (result == ObjectOperationResult.SUCCESS) {
-            this.logger.info("disabled module %s.".formatted(id));
+            this.logger.info("disabled package {}.", id);
         }
         this.saveStatus();
         return result;
@@ -133,8 +136,8 @@ public class PackageManager implements Service {
             pkg.initContext(this.context);
             pkg.initialize();
 
-
             this.packages.put(id, pkg);
+
             if (getStatus(id) == TriState.UNKNOWN) {
                 var enable = defaultPackageStatus(pkg);
                 this.statusMap.put(id, enable ? "enabled" : "disabled");
@@ -143,6 +146,14 @@ public class PackageManager implements Service {
             if (isReservedPackage(pkg)) {
                 this.statusMap.put(id, "enabled");
             }
+
+            try {
+                pkg.checkCompatibility();
+            } catch (APIIncompatibleException e) {
+                this.incompatiblePackages.add(id);
+                return;
+            }
+
             if (getStatus(id) == TriState.TRUE) {
                 try {
                     pkg.enable();
@@ -150,7 +161,7 @@ public class PackageManager implements Service {
                     this.handleException(ex);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             this.handleException(e);
         }
     }
@@ -164,10 +175,11 @@ public class PackageManager implements Service {
         }
         try {
             this.packages.get(id).disable();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             this.handleException(e);
         }
         this.packages.remove(id);
+        this.incompatiblePackages.remove(id);
     }
 
 
@@ -176,6 +188,10 @@ public class PackageManager implements Service {
     }
 
     private ObjectOperationResult enable0(String id) {
+        if(this.incompatiblePackages.contains(id)) {
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
         if (getStatus(id) == TriState.UNKNOWN) {
             return ObjectOperationResult.NOT_FOUND;
         }
@@ -193,6 +209,10 @@ public class PackageManager implements Service {
     }
 
     private ObjectOperationResult disable0(String id) {
+        if(this.incompatiblePackages.contains(id)) {
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
         if (getStatus(id) == TriState.UNKNOWN) {
             return ObjectOperationResult.NOT_FOUND;
         }
@@ -207,6 +227,10 @@ public class PackageManager implements Service {
         }
         this.statusMap.put(id, "disabled");
         return ObjectOperationResult.SUCCESS;
+    }
+
+    public boolean isIncompatiblePackage(String id) {
+        return this.incompatiblePackages.contains(id);
     }
 
     public final ModularApplicationContext context() {

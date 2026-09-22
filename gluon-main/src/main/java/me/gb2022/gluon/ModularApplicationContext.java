@@ -40,7 +40,9 @@ public final class ModularApplicationContext {
                 continue;
             }
 
-            packages.add(this.getPackageManager().buildPackage(holder, m));
+            var pkg = this.getPackageManager().buildPackage(holder, m);
+
+            packages.add(pkg);
         }
 
         for (var p : packages) {
