@@ -86,32 +86,154 @@ public class ModuleManager {
 
     public void unregister(String id) {
         if (!this.modules.containsKey(id)) {
-            if (!this.modules.isEmpty()) {
-                this.logger.warn("Module with id {} not found", id);
-            }
+            this.logger.warn("Module with id {} not found", id);
             return;
         }
 
         if (this.getStatus(id) == TriState.TRUE) {
-            var meta = this.get(id).orElseThrow();
-            var result = ObjectOperationResult.INTERNAL_ERROR;
+            var container = this.get(id).orElseThrow();
 
-            this.handlePreDisable(meta);
-
-            try {
-                meta.disable();
-                result = ObjectOperationResult.SUCCESS;
-            } catch (NoClassDefFoundError e) {
-                this.logger.error("Module {} reported exception. Continued unload with error.", meta.getMetadata().key());
-            } catch (Throwable ex) {
-                this.handleException(ex);
+            if(container.getStatus() == FunctionalComponentStatus.ENABLED) {
+                _disable(container);
             }
-
-            this.handlePostDisable(meta, result);
         }
 
         this.modules.remove(id);
     }
+
+
+    private ObjectOperationResult _enable(ModuleContainer container) {
+        var result = ObjectOperationResult.INTERNAL_ERROR;
+
+        try {
+            this.handlePreEnable(container);
+        }catch (Throwable ex) {
+            this.logger.error("Failed to ENABLE '{}' on PRE_ENABLE:", ex);
+            this.handleException(ex);
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
+        try {
+            container.enable();
+            result = ObjectOperationResult.SUCCESS;
+        }catch (Throwable ex) {
+            this.logger.error("Failed to ENABLE '{}' on ENABLE:", ex);
+            this.handleException(ex);
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
+        try {
+            this.handlePostEnable(container, result);
+        }catch (Throwable ex) {
+            this.logger.error("Failed to ENABLE '{}' on ENABLE:", ex);
+            this.handleException(ex);
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
+        return result;
+    }
+
+    private ObjectOperationResult _disable(ModuleContainer container) {
+        var result = ObjectOperationResult.INTERNAL_ERROR;
+        var id = container.getMetadata().key().toString();
+
+        try {
+            this.handlePreDisable(container);
+        } catch (Throwable ex) {
+            this.logger.error("Failed to UNREGISTER '{}' on PRE_DISABLE:", id);
+            this.handleException(ex);
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
+        try {
+            container.disable();
+            result = ObjectOperationResult.SUCCESS;
+        } catch (NoClassDefFoundError e) {
+            this.logger.warn("Module '{}' reported dep exception. Continued unload with error.", id);
+        } catch (Throwable ex) {
+            this.logger.error("Failed to UNREGISTER '{}' on DISABLE:", id);
+            this.handleException(ex);
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
+        try {
+            this.handlePostDisable(container, result);
+        } catch (Throwable ex) {
+            this.logger.error("Failed to UNREGISTER '{}' on POST_DISABLE:", id);
+            this.handleException(ex);
+            return ObjectOperationResult.INTERNAL_ERROR;
+        }
+
+        return result;
+    }
+
+    public ObjectOperationResult enable(String id) {
+        var o = get(id);
+        var container = o.orElse(null);
+
+        if(o.isEmpty()){
+            return ObjectOperationResult.NOT_FOUND;
+        }
+
+        if (container.getMetadata().internal()) {
+            return ObjectOperationResult.BLOCKED_INTERNAL;
+        }
+
+        var result = checkState0(container, FunctionalComponentStatus.ENABLED);
+
+        if (result != ObjectOperationResult.INTERNAL_ERROR) {
+            return result;
+        }
+
+        result = _enable(container);
+
+        if (result == ObjectOperationResult.SUCCESS) {
+            this.statusMap.put(id, "enabled");
+            this.logger.info("enabled module {}.", id);
+            this.saveStatus();
+        }
+
+        return result;
+    }
+
+    public ObjectOperationResult disable(String id) {
+        var o = this.get(id);
+        var container = o.orElse(null);
+
+        if (o.isEmpty()) {
+            return ObjectOperationResult.NOT_FOUND;
+        }
+
+        if (container.getMetadata().internal()) {
+            return ObjectOperationResult.BLOCKED_INTERNAL;
+        }
+
+        var result = checkState0(container, FunctionalComponentStatus.DISABLED);
+
+        if (result != ObjectOperationResult.INTERNAL_ERROR) {
+            return result;
+        }
+
+        result = this._disable(container);
+
+        if (result == ObjectOperationResult.SUCCESS) {
+            this.logger.info("disabled module {}.", id);
+            this.statusMap.put(id, "disabled");
+            this.saveStatus();
+        }
+
+        return result;
+    }
+
+    public final ObjectOperationResult reload(String id) {
+        ObjectOperationResult result = this.disable(id);
+        if (result != ObjectOperationResult.SUCCESS) {
+            return result;
+        }
+        return enable(id);
+    }
+
+
 
     public final Properties getStatusMap() {
         return statusMap;
@@ -143,43 +265,7 @@ public class ModuleManager {
         return result;
     }
 
-    public ObjectOperationResult enable(String id) {
-        if (get(id).orElseThrow().getMetadata().internal()) {
-            return ObjectOperationResult.BLOCKED_INTERNAL;
-        }
 
-        var result = enable0(id);
-
-        if (result == ObjectOperationResult.SUCCESS) {
-            this.logger.info("enabled module {}.", id);
-        }
-
-        this.saveStatus();
-        return result;
-    }
-
-    public ObjectOperationResult disable(String id) {
-        if (get(id).orElseThrow().getMetadata().internal()) {
-            return ObjectOperationResult.BLOCKED_INTERNAL;
-        }
-
-        var result = disable0(id);
-
-        if (result == ObjectOperationResult.SUCCESS) {
-            this.logger.info("disabled module {}.", id);
-        }
-
-        this.saveStatus();
-        return result;
-    }
-
-    public final ObjectOperationResult reload(String id) {
-        ObjectOperationResult result = this.disable(id);
-        if (result != ObjectOperationResult.SUCCESS) {
-            return result;
-        }
-        return enable(id);
-    }
 
     private ObjectOperationResult checkState0(ModuleContainer handle, FunctionalComponentStatus state) {
         if (handle == null || handle.getStatus() == FunctionalComponentStatus.UNKNOWN) {
@@ -193,59 +279,6 @@ public class ModuleManager {
         return ObjectOperationResult.INTERNAL_ERROR;
     }
 
-    private ObjectOperationResult enable0(String id) {
-        var handle = this.get(id).orElse(null);
-        var result = checkState0(handle, FunctionalComponentStatus.ENABLED);
-
-        if (result != ObjectOperationResult.INTERNAL_ERROR) {
-            return result;
-        }
-
-        this.handlePreEnable(handle);
-
-        try {
-            assert handle != null;
-            handle.enable();
-            result = ObjectOperationResult.SUCCESS;
-        } catch (Exception ex) {
-            this.handleException(ex);
-        }
-
-        this.handlePostEnable(handle, result);
-
-        if (result == ObjectOperationResult.SUCCESS) {
-            this.statusMap.put(id, "enabled");
-        }
-
-        return result;
-    }
-
-    private ObjectOperationResult disable0(String id) {
-        var meta = this.get(id).orElse(null);
-        var result = checkState0(meta, FunctionalComponentStatus.DISABLED);
-
-        if (result != ObjectOperationResult.INTERNAL_ERROR) {
-            return result;
-        }
-
-        this.handlePreDisable(meta);
-
-        try {
-            assert meta != null;
-            meta.disable();
-            result = ObjectOperationResult.SUCCESS;
-        } catch (Exception ex) {
-            this.handleException(ex);
-        }
-
-        this.handlePostDisable(meta, result);
-
-        if (result == ObjectOperationResult.SUCCESS) {
-            this.statusMap.put(id, "disabled");
-        }
-
-        return result;
-    }
 
     private void saveStatus() {
         this.saveStatus(this.statusMap);
